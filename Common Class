@@ -8,9 +8,9 @@ import Alamofire
 import SVProgressHUD
 
 
-class FSWPHelper: NSObject {
+class Helper: NSObject {
 
-    static var shared = FSWPHelper()
+    static var shared = Helper()
     
     struct UDefault {
         static func save(key : String, value : Any){
