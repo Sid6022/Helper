@@ -129,8 +129,8 @@ class Helper: NSObject {
         // function to AlamoFire authentication header
        static func getAuthenticationHeaders() -> [String:String] {
             // create authentication headers
-            let authUserName = "FightSong"
-            let authPassword = "FS$#987"
+            let authUserName = "ABC"
+            let authPassword = "12345"
             let credentialData = "\(authUserName):\(authPassword)".data(using: String.Encoding.utf8)!
             // encode credentials
             let base64Credentials = credentialData.base64EncodedString(options: [])
