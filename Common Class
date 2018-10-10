@@ -1,0 +1,371 @@
+//  Helper.swift
+//  Created by sagar.
+
+
+import UIKit
+import CoreLocation
+import Alamofire
+import SVProgressHUD
+
+
+class FSWPHelper: NSObject {
+
+    static var shared = FSWPHelper()
+    
+    struct UDefault {
+        static func save(key : String, value : Any){
+            UserDefaults.standard.set(value, forKey: key)
+            UserDefaults.standard.synchronize()
+        }
+        
+        static func get(key : String) -> Any?{
+            return UserDefaults.standard.value(forKey: key)
+        }
+        static func save(customObj : Any,key : String){
+            let aData = NSKeyedArchiver.archivedData(withRootObject: customObj)
+            save(key: key, value: aData)
+        }
+        static func getCustomObj(withKey key : String) -> Any?{
+            guard let aData = get(key: key)else{return nil}
+                let aFetchData = NSKeyedUnarchiver.unarchiveObject(with: aData as! Data)
+                 return aFetchData
+        }
+        
+    }
+    
+    struct Alert {
+        
+        typealias alertCompletion = ((UIAlertAction)->())
+        
+        static func showAlert(title: String = "Alert", message: String, viewController : UIViewController, okAction : alertCompletion?){
+            let aAlertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            
+            let aAlertOK = UIAlertAction(title: "Ok", style: .default, handler: okAction)
+            
+            aAlertController.addAction(aAlertOK)
+            
+            viewController.present(aAlertController, animated: true, completion: nil)
+            
+        }
+        
+        static func showAlert(title: String = "Alert", message: String, viewController : UIViewController, arrActionTitle : [String], completionHandler : ((Int)->())?){
+            let aAlertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            
+            for (aIndex,aTitle) in arrActionTitle.enumerated(){
+                
+                let aAlert = UIAlertAction(title: aTitle, style: .default) { (aAlert) in
+                    completionHandler?(aIndex)
+                }
+                aAlertController.addAction(aAlert)
+            }
+            
+            viewController.present(aAlertController, animated: true, completion: nil)
+            
+        }
+    }
+    
+    struct Request {
+        
+        static func isConnectedToInternet() ->Bool {
+            return NetworkReachabilityManager()!.isReachable
+        }
+        
+        static func post(url: String, parameter : [String:Any]?, callSilently : Bool = false, completionBlock : (([String:Any]?,Error?)->())?){
+            
+            request(url: url, type: .post, parameter: parameter, callSilently : callSilently, completionBlock: completionBlock)
+        }
+        
+        static func get(url: String, parameter : [String:Any]?, callSilently : Bool = false, completionBlock : (([String:Any]?,Error?)->())?){
+            
+            request(url: url, type: .get, parameter: parameter, callSilently : callSilently, completionBlock: completionBlock)
+        }
+        
+        private static func request(url: String, type : HTTPMethod, parameter : [String:Any]?, callSilently : Bool = false, completionBlock : (([String:Any]?,Error?)->())?){
+            guard let aUrl = URL(string: url) else { return }
+            guard isConnectedToInternet() else {
+                
+                guard let aVC = Helper.AppDelObj.window?.rootViewController else {
+                    return
+                }
+                
+                Alert.showAlert(message: "Check your internet connectivity.", viewController: aVC, okAction: nil)
+                
+                return
+            }
+            
+            print("===========================================")
+            print("API URL -> \(aUrl.absoluteString)")
+            print("API PARAM -> \(parameter ?? [:])")
+            print("TYPE -> \(type == .get ? "GET":"POST")")
+            print("===========================================")
+            let aVC = Helper.AppDelObj.window?.rootViewController
+            if !callSilently{
+                SVProgressHUD.show()
+                aVC?.view.isUserInteractionEnabled = false
+            }
+            
+            let aHeader = getAuthenticationHeaders()
+            Alamofire.request(aUrl, method: type, parameters: parameter, encoding: URLEncoding.default, headers: aHeader).responseJSON { (aResponse) in
+                
+                if !callSilently{
+                  SVProgressHUD.dismiss()
+                    aVC?.view.isUserInteractionEnabled = true
+                }
+                
+                guard aResponse.error == nil else {
+                    completionBlock?(nil,aResponse.error)
+                    return
+                }
+                
+                guard let aDicResponse = aResponse.result.value as? [String:Any] else {
+                    completionBlock?(nil,aResponse.error)
+                    return
+                }
+                
+                completionBlock?(aDicResponse,aResponse.error)
+            }
+        }
+        
+        // function to AlamoFire authentication header
+       static func getAuthenticationHeaders() -> [String:String] {
+            // create authentication headers
+            let authUserName = "FightSong"
+            let authPassword = "FS$#987"
+            let credentialData = "\(authUserName):\(authPassword)".data(using: String.Encoding.utf8)!
+            // encode credentials
+            let base64Credentials = credentialData.base64EncodedString(options: [])
+            return ["Authorization": "Basic \(base64Credentials)"]
+        }
+        
+        
+        static func uploadFiles(url: String, fileUrls : [UIImage], parameters:[String:String], completion : ((DataResponse<Any>?,Error?)->())?){
+            
+            guard let aUrl = URL(string: url) else { return }
+          guard isConnectedToInternet() else  { return }
+            
+            let aController : UIViewController? = Helper.AppDelObj.window?.rootViewController as? UINavigationController ?? Helper.AppDelObj.window?.rootViewController
+            aController?.view.isUserInteractionEnabled = false
+            SVProgressHUD.show(withStatus: "Uploading...")
+ 
+            
+            let aFiles = fileUrls.map { (aUrl) -> Data in
+                
+                var aData = UIImagePNGRepresentation(aUrl)
+                return aData ?? Data()
+            }
+            
+            let headers: HTTPHeaders = [
+                /* "Authorization": "your_access_token",  in case you need authorization header */
+                "Content-type": "multipart/form-data"
+            ]
+            
+            Alamofire.upload(multipartFormData: { (multipartFormData) in
+                
+                for (aIndex,aFileData) in aFiles.enumerated() {
+                    let aTimeStamp = Date().timeIntervalSince1970
+                    
+                    multipartFormData.append(aFileData, withName: "image", fileName: "IMAGE_\(aTimeStamp).jpg", mimeType: "image/jpeg")
+                }
+                
+                for (key, value) in parameters {
+                    multipartFormData.append(value.data(using: String.Encoding.utf8)!, withName: key)
+                }
+            }, usingThreshold: UInt64.init(), to: aUrl, method: .post, headers: headers) { (aResult) in
+                
+                func enableInteraction(){
+                    DispatchQueue.main.async {
+                        aController?.view.isUserInteractionEnabled = true
+                        SVProgressHUD.dismiss()
+                    }
+                }
+                
+                switch aResult {
+                case .success(let upload, _, _):
+                    upload.uploadProgress(closure: { (aProgress) in
+                        
+                        SVProgressHUD.showProgress(Float(aProgress.fractionCompleted), status: "Uploading \(Float(aProgress.completedUnitCount)/1000.00)KB of \(Float(aProgress.totalUnitCount)/1000.00)KB")
+                    })
+                    
+                    upload.responseJSON { response in
+                        enableInteraction()
+                        completion?(response,nil)
+                    }
+                case .failure(let error):
+                    print(error)
+                    enableInteraction()
+                    completion?(nil,error)
+                }
+            }
+        }
+    }
+}
+
+class locationHelper : NSObject {
+    
+    static var shared = locationHelper()
+    
+    private var locationManager : CLLocationManager = CLLocationManager()
+    private var completionLatLongBlock : ((Double?,Double?,Bool)->())?
+    private var completionAddressBlock : (([String])->())?
+    
+    func getUserLocation(vc: UIViewController, completionLatLong : @escaping (Double?,Double?,Bool)->()){
+        completionLatLongBlock = completionLatLong
+        getUserLocation(vc)
+    }
+    
+    func getUserLocation(vc: UIViewController, completionLatLong : @escaping (Double?,Double?,Bool)->(), completionAddress : @escaping ([String])->()){
+        completionLatLongBlock = completionLatLong
+        completionAddressBlock = completionAddress
+        getUserLocation(vc)
+    }
+    
+    private func getUserLocation(_ vc: UIViewController){
+        self.locationManager.delegate = self
+        self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        
+        if CLLocationManager.locationServicesEnabled()
+        {
+            let status: CLAuthorizationStatus = CLLocationManager.authorizationStatus()
+            if status == .notDetermined
+            {
+                locationManager.requestWhenInUseAuthorization()
+            }
+            
+        } else {
+            print("locationServices disenabled")
+            
+            self.sendFailure()
+            
+            showLocationSettingAlert(vc)
+        }
+        
+        self.locationManager.startUpdatingLocation()
+    }
+    
+    func showLocationSettingAlert(_ vc: UIViewController){
+        
+        let aAlert = UIAlertController(title: "Location Alert", message: "Please enable location service for this app in ALLOW LOCATION ACCESS: Always, Go to Setting?", preferredStyle: .alert)
+        let aActionNo = UIAlertAction(title: "No", style: .destructive, handler: nil)
+        let aActionSetting = UIAlertAction(title: "Open Setting", style: .default) { (_) in
+            
+            let aUrl = URL(string:UIApplicationOpenSettingsURLString )
+            if #available(iOS 10.0, *) {
+                UIApplication.shared.open(aUrl!, options: [:], completionHandler: nil)
+            } else {
+                // Fallback on earlier versions
+            }
+        }
+        
+        aAlert.addAction(aActionNo)
+        aAlert.addAction(aActionSetting)
+        
+        vc.present(aAlert, animated: true, completion: nil)
+    }
+    
+    func getAddressFromLatLon(pdblLatitude: String, withLongitude pdblLongitude: String, completionBlock: @escaping (([String])->())) {
+        var center : CLLocationCoordinate2D = CLLocationCoordinate2D()
+        let lat: Double = Double("\(pdblLatitude)")!
+        //21.228124
+        let lon: Double = Double("\(pdblLongitude)")!
+        //72.833770
+        let ceo: CLGeocoder = CLGeocoder()
+        center.latitude = lat
+        center.longitude = lon
+        
+        let loc: CLLocation = CLLocation(latitude:center.latitude, longitude: center.longitude)
+        
+        
+        ceo.reverseGeocodeLocation(loc, completionHandler:
+            {(placemarks, error) in
+                if (error != nil)
+                {
+                    print("reverse geodcode fail: \(error!.localizedDescription)")
+                    completionBlock([])
+                }
+                let pm = placemarks! as [CLPlacemark]
+                
+                if pm.count > 0 {
+                    let pm = placemarks![0]
+//                    print(pm.country)
+//                    print(pm.locality)
+//                    print(pm.subLocality)
+//                    print(pm.thoroughfare)
+//                    print(pm.postalCode)
+//                    print(pm.subThoroughfare)
+                    
+                    
+                    var arrAdd : [String] = []
+                    var addressString : String = ""
+                    if pm.subLocality != nil {
+                        addressString = addressString + pm.subLocality! + ", "
+                        arrAdd.append(pm.subLocality!)
+                    }
+                    if pm.thoroughfare != nil {
+                        addressString = addressString + pm.thoroughfare! + ", "
+                        arrAdd.append(pm.thoroughfare!)
+                    }
+                    if pm.locality != nil {
+                        addressString = addressString + pm.locality! + ", "
+                        arrAdd.append(pm.locality!)
+                    }
+                    if pm.country != nil {
+                        addressString = addressString + pm.country! + ", "
+                        arrAdd.append(pm.country!)
+                    }
+                    if pm.postalCode != nil {
+                        addressString = addressString + pm.postalCode! + " "
+                        arrAdd.append(pm.postalCode!)
+                    }
+                    
+                    print(addressString)
+                    completionBlock(arrAdd)
+                }
+        })
+    }
+    
+    func sendFailure(){
+        guard let aCompLatBLock = completionLatLongBlock else { return }
+        aCompLatBLock(nil,nil,false)
+    }
+    
+    func checkNetworkConnectivity() -> Bool{
+        
+        func isConnectedToInternet() -> Bool{
+            return NetworkReachabilityManager()?.isReachable ?? false
+        }
+        
+        return isConnectedToInternet()
+    }
+}
+
+extension locationHelper : CLLocationManagerDelegate{
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let aLocation = locations.last else { return }
+        guard  checkNetworkConnectivity() else { return }
+        
+        defer {
+            manager.stopUpdatingLocation()
+        }
+        
+        guard let aCompLatBLock = completionLatLongBlock else { return }
+        aCompLatBLock(aLocation.coordinate.latitude,aLocation.coordinate.longitude,true)
+        
+        guard let aCompAddBLock = completionAddressBlock else { return }
+        
+        getAddressFromLatLon(pdblLatitude: "\(aLocation.coordinate.latitude)", withLongitude: "\(aLocation.coordinate.longitude)") { (aAddress) in
+            aCompAddBLock(aAddress)
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        self.sendFailure()
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        
+        if status == .authorizedWhenInUse{
+            manager.startUpdatingLocation()
+        }
+    }
+}
+
