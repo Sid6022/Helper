@@ -1,0 +1,457 @@
+//  Sagar
+//  Helper.swift
+
+{code}
+
+import UIKit
+import MapKit
+
+struct Constant {
+    
+    static let appDel = UIApplication.shared.delegate as! AppDelegate
+    
+    let aArrModel = aObject.map { IncidentDetailModel(fromDictionary: $0) }
+    
+}
+
+class Helper: NSObject {
+
+static let AppDelObj = UIApplication.shared.delegate as! AppDelegate
+
+//MARK:- Userdefault Key
+
+static let kLoginKey = "LoginStatus"
+static let kFcmToken = "Fcmtoken"
+static let kSwitchOn = "NotificationOnOff"
+
+
+
+//MARK:- Date Format
+    
+    static var SERVICE_DATE_FORMAT_1  = "yyyy-MM-dd'T'HH:mm:ss"
+    static var SERVICE_DATE_FORMAT_2  = "MM/dd/yyyy hh:mm:ss aa"
+    static var SERVICE_DATE_FORMAT_3  = "M/dd/yyyy hh:mm:ss aa"
+    static var RESPONSE_DATE_FORMAT_1 = "yyyy-MM-dd'T'HH:mm:ss.S"
+    static var RESPONSE_DATE_FORMAT_2 = "yyyy-MM-dd'T'HH:mm:ss.SS" //2018-07-11T11:28:55.24
+    static var RESPONSE_DATE_FORMAT_3 = "yyyy-MM-dd'T'HH:mm:ss.SSS"
+    static var RESPONSE_DATE_FORMAT_4 = "yyyy-MM-dd HH:mm:ss"
+    static var DISPLAY_DATE_FORMAT_1  = "dd-MM-yyyy"
+    static var DISPLAY_DATE_FORMAT_2  = "dd/MM/yyyy"
+    static var DISPLAY_DATE_FORMAT_3  = "MMM dd, yyyy hh:mm aa"
+    static var DISPLAY_DATE_FORMAT_4  = "hh:mm aa MMM dd, yyyy"
+    static var CHAT_MSG_TIME_FORMAT   = "hh:mm aa"
+    static var CHAT_LIST_DATE_FORMAT = "dd/MM/yyyy"
+    static var CHAT_LIST_HEADER_DATE_FORMAT = "MMMM dd yyyy"
+
+//MARK:- kAppMSG
+
+static let kMsgEnterEmail       = "Please Enter Email"
+static let kMsgEnterPassword    = "Please Enter Password"
+static let kMsgInternetlost     = "No Internet Connection"
+static let kMsgEnterValidEmail  = "Please Enter Valid Email"
+static let kMsgPasswordNot      = "Password not match"
+    
+    
+    //MARK:- OverlayDraw
+    
+    
+    
+    func overlayPath(sourceLocation : CLLocationCoordinate2D, destinationLocation :CLLocationCoordinate2D , mapView : MKMapView){
+        let sourcePlacemark = MKPlacemark(coordinate: sourceLocation, addressDictionary: nil)
+        let destinationPlacemark = MKPlacemark(coordinate: destinationLocation, addressDictionary: nil)
+        let sourceMapItem = MKMapItem(placemark: sourcePlacemark)
+        let destinationMapItem = MKMapItem(placemark: destinationPlacemark)
+        let directionRequest = MKDirectionsRequest()
+        directionRequest.source = sourceMapItem
+        directionRequest.destination = destinationMapItem
+        directionRequest.transportType = .automobile
+        let directions = MKDirections(request: directionRequest)
+        
+        directions.calculate { (aResponce, aError) in
+            guard let response = aResponce else {
+                if let error = aError {
+                    print("Error: \(aError!)") }
+                return }
+            
+            let route = response.routes[0]
+           mapView.add((route.polyline), level: MKOverlayLevel.aboveRoads)
+            let rect = route.polyline.boundingMapRect
+           mapView.setRegion(MKCoordinateRegionForMapRect(rect), animated: true)
+        }
+        
+    }
+
+//MARK:- iDevice detection code
+
+struct Device {
+    static let IS_IPAD             = UIDevice.current.userInterfaceIdiom == .pad
+    static let IS_IPHONE           = UIDevice.current.userInterfaceIdiom == .phone
+    static let IS_RETINA           = UIScreen.main.scale >= 2.0
+    
+    static let SCREEN_WIDTH        = Int(UIScreen.main.bounds.size.width)
+    static let SCREEN_HEIGHT       = Int(UIScreen.main.bounds.size.height)
+    static let SCREEN_MAX_LENGTH   = Int( max(SCREEN_WIDTH, SCREEN_HEIGHT) )
+    static let SCREEN_MIN_LENGTH   = Int( min(SCREEN_WIDTH, SCREEN_HEIGHT) )
+    
+    static let IS_IPHONE_4_OR_LESS = IS_IPHONE && SCREEN_MAX_LENGTH  < 568
+    static let IS_IPHONE_5         = IS_IPHONE && SCREEN_MAX_LENGTH == 568
+    static let IS_IPHONE_6         = IS_IPHONE && SCREEN_MAX_LENGTH == 667
+    static let IS_IPHONE_6P        = IS_IPHONE && SCREEN_MAX_LENGTH == 736
+    static let IS_IPHONE_X         = IS_IPHONE && SCREEN_MAX_LENGTH == 812
+}
+
+
+    //Currnet Date
+    
+    static func getCurrentDate(outputFormat:String, isUTC : Bool = true) -> String
+    {
+        let date = Date()
+        let formatter = DateFormatter()
+        
+        formatter.dateFormat = outputFormat
+        
+        if isUTC{
+            formatter.timeZone = TimeZone(abbreviation: "UTC")
+        }
+        
+        let currentDate = formatter.string(from: date)
+        
+        return currentDate
+    }
+    
+    static func convert(Date aStrDate: String, inputFormat : String, outPutFormat : String, isUTC : Bool = true) -> String?{
+        
+        let aFormater = DateFormatter()
+        aFormater.timeZone = TimeZone(abbreviation: "UTC")
+        
+        aFormater.dateFormat = inputFormat
+        var aDate = aFormater.date(from: aStrDate)
+        
+        if aDate == nil{
+            aFormater.dateFormat = inputFormat + ".SSS"
+            aDate = aFormater.date(from: aStrDate)
+        }
+        
+        if aDate == nil{
+            aFormater.dateFormat = SERVICE_DATE_FORMAT_3
+            aDate = aFormater.date(from: aStrDate)
+        }
+        
+        guard aDate != nil else { return nil }
+        
+        
+        if isUTC{
+            aFormater.timeZone = Calendar.current.timeZone
+        }
+        
+        aFormater.dateFormat = outPutFormat
+        
+        return aFormater.string(from: aDate!)
+    }
+    
+    
+    //new
+  static  func convertChatMsgTime(dateTime: String, outFormat : String = Helper.CHAT_MSG_TIME_FORMAT) -> String  {
+        var msgDateTime:String = dateTime
+        if msgDateTime != "" {
+            msgDateTime = Helper.dateConversion(inputFormat: Helper.SERVICE_DATE_FORMAT_1, outputFormat: Helper.CHAT_MSG_TIME_FORMAT, inputDate: msgDateTime) ?? (Helper.dateConversion(inputFormat: Helper.RESPONSE_DATE_FORMAT_3, outputFormat: outFormat, inputDate: msgDateTime) ?? "")
+        }
+        else {
+            msgDateTime = ""
+        }
+        return msgDateTime
+    }
+
+    
+  
+    //UIColor Offline
+    
+    static let Green = UIColor(displayP3Red: 0/255.0, green: 119/255.0, blue: 71/255.0, alpha: 1)
+    static let Yellow = UIColor(displayP3Red: 242/255.0, green: 178/255.0, blue: 47/255.0, alpha: 1)
+    
+    // Function to convert date in user defined date format
+  static  func dateConversion(inputFormat:String, outputFormat:String, inputDate:String) -> String?
+    {
+        var outputDate : String?
+        
+        if  !inputDate.isEmpty
+        {
+            let inputFormatter = DateFormatter()
+            inputFormatter.dateFormat = inputFormat
+            let showDate = inputFormatter.date(from: inputDate)
+            guard showDate != nil else {return nil }
+            inputFormatter.dateFormat = outputFormat
+            outputDate = inputFormatter.string(from: showDate!)
+        }
+        return outputDate
+    }
+    
+    // Header date
+    static func getChatHeaderDateString(FromDate : String) -> String{
+        guard FromDate != "" else { return "" }
+        
+        var aStrDate = FromDate
+        let aDate = FromDate.getDate(Helper.SERVICE_DATE_FORMAT_1, isUTC: true)?.makeTimeZero()
+        
+        let aDateYesterday = getYesterDayDate().makeTimeZero()
+        
+        aStrDate = aDate == Date().makeTimeZero() ? "Today" : aDate == aDateYesterday ? "Yesterday" :  FromDate.getDateString(Helper.SERVICE_DATE_FORMAT_1, outputFormat: Helper.CHAT_LIST_HEADER_DATE_FORMAT, isUTC: true) ?? ""
+        
+        return aStrDate
+    }
+    
+    static func getYesterDayDate() -> Date{
+        var aCompanent = DateComponents()
+        aCompanent.day = -1
+        aCompanent.timeZone = Calendar.current.timeZone
+        
+        return Calendar.current.date(byAdding: aCompanent, to: Date()) ?? Date()
+    }
+    
+
+//MARK :- Alert
+
+enum alertType : Int {
+    case setting
+    case ok
+    case onlyok
+}
+
+static func openAlertWith(message : String, type : alertType , controller : UIViewController , handler : ((UIAlertAction) -> Void)?) {
+    
+    let alertController = UIAlertController(title: "Alert", message: message, preferredStyle: .alert)
+    let cancelAction = UIAlertAction(title: "Cancel", style: .default, handler: handler)
+    switch type {
+    case alertType.setting:
+        let Seting = UIAlertAction(title: "Settings", style: .default, handler: handler)
+        alertController.addAction(Seting)
+        alertController.addAction(cancelAction)
+        break
+    case alertType.ok:
+        let okAction = UIAlertAction(title: "OK", style: .default, handler: handler)
+        alertController.addAction(okAction)
+        alertController.addAction(cancelAction)
+    case alertType.onlyok:
+        let okAction = UIAlertAction(title: "OK", style: .default, handler: handler)
+        alertController.addAction(okAction)
+//    default:
+//        break
+    }
+    controller.present(alertController, animated: true, completion: nil)
+}
+
+
+//View Animation
+    
+    
+    static func hideImgDetail(_ flag : Bool , view : UIView){
+        
+        if !flag{
+            view.alpha = 0
+            view.isHidden = false
+            view.transform = CGAffineTransform(scaleX: 1.5, y: 1.5)
+        }
+        
+        UIView.animate(withDuration: 0.3, animations: {
+            view.alpha = flag ? 0 : 1
+            view.transform = flag ? CGAffineTransform(scaleX: 1.5, y: 1.5) : .identity
+        }) { (_) in
+            if flag{
+                view.isHidden = true
+                view.transform = .identity
+            }
+        }
+    }
+    
+
+//MARK:- Email Validation
+
+static func isValidEmailAddress(emailAddressString: String) -> Bool {
+    var returnValue = true
+    let emailRegEx = "[A-Z0-9a-z.-_]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,3}"
+    do {
+        let regex = try NSRegularExpression(pattern: emailRegEx)
+        let nsString = emailAddressString as NSString
+        let results = regex.matches(in: emailAddressString, range: NSRange(location: 0, length: nsString.length))
+        if results.count == 0{
+            returnValue = false
+        }
+    } catch let error as NSError {
+        print("invalid regex: \(error.localizedDescription)")
+        returnValue = false
+    }
+    return  returnValue
+}
+
+//MARK:- Remove Special Character
+
+static func removeSpecialCharsFromString(text: String) -> String {
+    let okayChars : Set<Character> =
+        Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLKMNOPQRSTUVWXYZ1234567890+*=,.:!_")
+    return String(text.filter {okayChars.contains($0) })
+}
+
+//Push to Controller
+static func toPushController(viewControl : String, storyboar : UIStoryboard, navigationContol : UINavigationController)  {
+    let toNextVC = storyboar.instantiateViewController(withIdentifier: viewControl)
+    navigationContol.pushViewController(toNextVC, animated: true)
+}
+
+//Animation
+
+static func shakeTxt(YourText txtFld : UIView, YoutTxt txtPlace: UITextField, YourStr strMsg: String, YouViewColor viewColor : UIView){
+    let animation = CABasicAnimation(keyPath: "position")
+    animation.duration = 0.07
+    animation.repeatCount = 4
+    txtPlace.placeholder = strMsg
+    txtPlace.attributedPlaceholder = NSAttributedString(string: strMsg,
+                                                        attributes: [NSAttributedStringKey.foregroundColor: UIColor.red])
+    viewColor.backgroundColor = UIColor.red
+    animation.autoreverses = true
+    animation.fromValue = NSValue(cgPoint: CGPoint(x: txtFld.center.x - 10, y: txtFld.center.y))
+    animation.toValue = NSValue(cgPoint: CGPoint(x: txtFld.center.x + 10, y: txtFld.center.y))
+    txtFld.layer.add(animation, forKey: "position")
+}
+    
+    
+    static func shakeTxtFeild(YourText txtFld : UIView, YoutPlaceHolder txtPlace: UITextField, YourStr strMsg: String){
+        let animation = CABasicAnimation(keyPath: "position")
+        animation.duration = 0.07
+        animation.repeatCount = 4
+        txtPlace.placeholder = strMsg
+        txtPlace.attributedPlaceholder = NSAttributedString(string: strMsg,
+                                                            attributes: [NSAttributedStringKey.foregroundColor: UIColor.red])
+        animation.autoreverses = true
+        animation.fromValue = NSValue(cgPoint: CGPoint(x: txtFld.center.x - 10, y: txtFld.center.y))
+        animation.toValue = NSValue(cgPoint: CGPoint(x: txtFld.center.x + 10, y: txtFld.center.y))
+        txtFld.layer.add(animation, forKey: "position")
+    }
+
+static func shakeTxtOnly(YourText txtFld : UIView, YoutTxt txtPlace: UITextField, YourStr strMsg: String){
+    let animation = CABasicAnimation(keyPath: "position")
+    animation.duration = 0.07
+    animation.repeatCount = 4
+    txtPlace.placeholder = strMsg
+    txtPlace.attributedPlaceholder = NSAttributedString(string: strMsg,
+                                                           attributes: [NSAttributedStringKey.foregroundColor: UIColor.red])
+    animation.autoreverses = true
+    animation.fromValue = NSValue(cgPoint: CGPoint(x: txtFld.center.x - 10, y: txtFld.center.y))
+    animation.toValue = NSValue(cgPoint: CGPoint(x: txtFld.center.x + 10, y: txtFld.center.y))
+    txtFld.layer.add(animation, forKey: "position")
+    }
+}
+
+//MARK:- image compression
+
+extension UIView{
+    func rotate(angle: CGFloat) {
+        let radians = angle / 180.0 * CGFloat(Double.pi)
+        let rotation = self.transform.rotated(by: radians)
+        self.transform = rotation
+    }
+}
+
+extension UIImage {
+    var highestQualityJPEGNSData: NSData { return UIImageJPEGRepresentation(self, 1.0)! as NSData }
+    var highQualityJPEGNSData: NSData    { return UIImageJPEGRepresentation(self, 0.75)! as NSData}
+    var mediumQualityJPEGNSData: NSData  { return UIImageJPEGRepresentation(self, 0.5)! as NSData }
+    var lowQualityJPEGNSData: NSData     { return UIImageJPEGRepresentation(self, 0.25)! as NSData}
+    var lowestQualityJPEGNSData: NSData  { return UIImageJPEGRepresentation(self, 0.0)! as NSData }
+}
+
+extension String {
+    func trim() -> String {
+        return self.trimmingCharacters(in: NSCharacterSet.whitespaces).replacingOccurrences(of: "\n", with: "")
+    }
+}
+
+
+
+extension String{
+    func getDateString(_ inputFormat : String, outputFormat : String, isUTC : Bool = false) -> String?{
+        let aFormater = DateFormatter()
+        aFormater.dateFormat = inputFormat
+        
+        if isUTC{
+            aFormater.timeZone = TimeZone(abbreviation: "UTC")
+        }
+        
+        guard let aDate = aFormater.date(from: self) else { return nil }
+        
+        return aDate.getString(outputFormat)
+    }
+    
+    func getDate(_ format : String, isUTC : Bool = false) -> Date?{
+        let aFormater = DateFormatter()
+        aFormater.dateFormat = format
+        aFormater.timeZone = Calendar.current.timeZone
+        
+        if isUTC{
+            aFormater.timeZone = TimeZone(abbreviation: "UTC")
+        }
+        
+        guard let aDate = aFormater.date(from: self) else { return nil }
+        
+        if isUTC{
+            guard let aStrLocalDate = aDate.getString(format) else { return nil }
+            aFormater.timeZone = Calendar.current.timeZone
+            let aLocalDate = aFormater.date(from: aStrLocalDate)
+            return aLocalDate
+        }
+        
+        return aDate
+    }
+}
+
+extension Date{
+    func getString(_ Format : String) -> String?{
+        let aFormatter = DateFormatter()
+        aFormatter.dateFormat = Format
+        return aFormatter.string(from: self)
+    }
+    
+    func makeTimeZero(isUTC : Bool = true) -> Date{
+        return self.getString("dd/MM/yyyy")?.getDate("dd/MM/yyyy", isUTC: isUTC) ?? self
+    }
+}
+
+@IBDesignable
+class GradientView: UIView {
+    
+    @IBInspectable var startColor:   UIColor = .black { didSet { updateColors() }}
+    @IBInspectable var endColor:     UIColor = .white { didSet { updateColors() }}
+    @IBInspectable var startLocation: Double =   0.05 { didSet { updateLocations() }}
+    @IBInspectable var endLocation:   Double =   0.95 { didSet { updateLocations() }}
+    @IBInspectable var horizontalMode:  Bool =  false { didSet { updatePoints() }}
+    @IBInspectable var diagonalMode:    Bool =  false { didSet { updatePoints() }}
+    
+    override class var layerClass: AnyClass { return CAGradientLayer.self }
+    
+    var gradientLayer: CAGradientLayer { return layer as! CAGradientLayer }
+    
+    func updatePoints() {
+        if horizontalMode {
+            gradientLayer.startPoint = diagonalMode ? CGPoint(x: 1, y: 0) : CGPoint(x: 0, y: 0.5)
+            gradientLayer.endPoint   = diagonalMode ? CGPoint(x: 0, y: 1) : CGPoint(x: 1, y: 0.5)
+        } else {
+            gradientLayer.startPoint = diagonalMode ? CGPoint(x: 0, y: 0) : CGPoint(x: 0.5, y: 0)
+            gradientLayer.endPoint   = diagonalMode ? CGPoint(x: 1, y: 1) : CGPoint(x: 0.5, y: 1)
+        }
+    }
+    func updateLocations() {
+        gradientLayer.locations = [startLocation as NSNumber, endLocation as NSNumber]
+    }
+    func updateColors() {
+        gradientLayer.colors    = [startColor.cgColor, endColor.cgColor]
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updatePoints()
+        updateLocations()
+        updateColors()
+    }
+}
+
+
+{code}
